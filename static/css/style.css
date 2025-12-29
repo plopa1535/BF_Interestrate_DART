@@ -159,7 +159,7 @@ body {
 .section-title {
     font-size: 15px;
     font-weight: 600;
-    color: var(--gray-600);
+    color: #3C4043;
     margin-bottom: var(--spacing-xs);
 }
 
