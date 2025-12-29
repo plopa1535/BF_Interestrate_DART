@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비즈니스예측모형팀-금리 모니터링</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <img class="logo-icon" src="/static/images/그림1.png" alt="로고">
+                <h1 class="logo-text">비즈니스예측모형팀_금리모니터</h1>
+            </div>
+            <div class="header-info">
+                <span class="update-time" id="lastUpdate">Loading...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Section 1: Charts -->
+        <section class="section charts-section">
+            <div class="section-header">
+                <h2 class="section-title">미국/한국 10년물 국고채 금리 (최근 6개월)</h2>
+                <div class="section-subtitle"></div>
+            </div>
+            
+            <div class="charts-container charts-vertical">
+                <!-- Line Chart -->
+                <div class="chart-card chart-main">
+                    <div class="chart-wrapper">
+                        <canvas id="rateChart"></canvas>
+                    </div>
+                    <div class="chart-loading" id="rateChartLoading">
+                        <div class="spinner"></div>
+                        <span>Loading chart data...</span>
+                    </div>
+                </div>
+
+                <!-- Spread Bar Chart -->
+                <div class="chart-card chart-spread-full">
+                    <div class="chart-header">
+                        <span class="chart-label">Rate Spread (KR - US) - 최근 6개월</span>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="spreadChart"></canvas>
+                    </div>
+                    <div class="chart-loading" id="spreadChartLoading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Latest Rates Cards -->
+            <div class="rates-summary">
+                <div class="rate-card us-rate">
+                    <div class="rate-flag">🇺🇸</div>
+                    <div class="rate-info">
+                        <span class="rate-label">US 10Y Treasury</span>
+                        <span class="rate-value" id="usRateValue">--</span>
+                    </div>
+                </div>
+                <div class="rate-card kr-rate">
+                    <div class="rate-flag">🇰🇷</div>
+                    <div class="rate-info">
+                        <span class="rate-label">KR 10Y Treasury</span>
+                        <span class="rate-value" id="krRateValue">--</span>
+                    </div>
+                </div>
+                <div class="rate-card spread-rate">
+                    <div class="rate-info">
+                        <span class="rate-label">Spread</span>
+                        <span class="rate-value" id="spreadValue">--</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: AI Analysis -->
+        <section class="section analysis-section">
+            <div class="analysis-card">
+                <div class="analysis-header">
+                    <div class="analysis-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
+                            <path d="M12 2a10 10 0 0 1 10 10"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </div>
+                    <div class="analysis-title">
+                        <h3>AI Market Analysis</h3>
+                        <span class="analysis-badge">Powered by Gemini</span>
+                    </div>
+                </div>
+                <div class="analysis-content" id="analysisContent">
+                    <div class="analysis-skeleton">
+                        <div class="skeleton-line"></div>
+                        <div class="skeleton-line short"></div>
+                    </div>
+                </div>
+                <div class="analysis-footer">
+                    <span class="analysis-time" id="analysisTime"></span>
+                    <button class="refresh-btn" id="refreshAnalysis" title="새로고침">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23,4 23,10 17,10"></polyline>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: News Feed -->
+        <section class="section news-section">
+            <div class="section-header">
+                <h2 class="section-title">Latest News</h2>
+                <div class="section-subtitle">금리 관련 최신 뉴스</div>
+            </div>
+            
+            <div class="news-container">
+                <!-- US News Column -->
+                <div class="news-column">
+                    <div class="news-column-header">
+                        <span class="news-flag">🇺🇸</span>
+                        <span class="news-country">United States</span>
+                    </div>
+                    <div class="news-list" id="usNewsList">
+                        <!-- News cards will be inserted here -->
+                        <div class="news-skeleton">
+                            <div class="skeleton-card"></div>
+                            <div class="skeleton-card"></div>
+                            <div class="skeleton-card"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Korean News Column -->
+                <div class="news-column">
+                    <div class="news-column-header">
+                        <span class="news-flag">🇰🇷</span>
+                        <span class="news-country">대한민국</span>
+                    </div>
+                    <div class="news-list" id="krNewsList">
+                        <!-- News cards will be inserted here -->
+                        <div class="news-skeleton">
+                            <div class="skeleton-card"></div>
+                            <div class="skeleton-card"></div>
+                            <div class="skeleton-card"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Analyst Forecast -->
+        <section class="section forecast-section">
+            <div class="section-header">
+                <h2 class="section-title">Analyst Forecast</h2>
+                <div class="section-subtitle">증권사 애널리스트 향후 12개월 금리 전망</div>
+            </div>
+
+            <div class="forecast-card">
+                <div class="forecast-meta">
+                    <span class="forecast-source" id="forecastSource">출처: --</span>
+                    <span class="forecast-updated" id="forecastUpdated">업데이트: --</span>
+                </div>
+                <div class="forecast-chart-wrapper">
+                    <canvas id="forecastChart"></canvas>
+                </div>
+                <div class="chart-loading" id="forecastChartLoading">
+                    <div class="spinner"></div>
+                    <span>Loading forecast data...</span>
+                </div>
+                <div class="forecast-table-wrapper">
+                    <table class="forecast-table">
+                        <thead>
+                            <tr>
+                                <th>월</th>
+                                <th>US 10Y</th>
+                                <th>KR 10Y</th>
+                                <th>Spread</th>
+                            </tr>
+                        </thead>
+                        <tbody id="forecastTableBody">
+                            <!-- Forecast data will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: DART Insurance Duration Analysis -->
+        <section class="section dart-section">
+            <div class="section-header">
+                <h2 class="section-title">금리변화와 보험사 자본변동</h2>
+                <div class="section-subtitle">출처 : DART 전자공시시스템</div>
+            </div>
+
+            <!-- Control Panel -->
+            <div class="card">
+                <div class="control-panel">
+                    <div class="control-group">
+                        <label for="dartCompanySelect">회사 선택</label>
+                        <select id="dartCompanySelect" class="control-select">
+                            <option value="samsung">삼성생명</option>
+                            <option value="hanwha">한화생명</option>
+                            <option value="kyobo" selected>교보생명</option>
+                            <option value="shinhan">신한생명</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="dartYearSelect">분석 기간</label>
+                        <select id="dartYearSelect" class="control-select">
+                            <option value="1">최근 1년 (12분기)</option>
+                            <option value="2">최근 2년</option>
+                            <option value="3" selected>최근 3년</option>
+                            <option value="4">최근 4년</option>
+                            <option value="5">최근 5년</option>
+                        </select>
+                    </div>
+                    <button id="dartAnalyzeBtn" class="btn-primary">조회</button>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading" id="dartLoading">
+                    <div class="spinner"></div>
+                    <span>DART 데이터 조회 및 분석 중...</span>
+                </div>
+
+                <!-- Error State -->
+                <div class="error-message" id="dartError" style="display:none;">
+                    분석 중 오류가 발생했습니다.
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="dartResults">
+                <!-- Summary Cards -->
+                <div class="rates-summary">
+                    <div class="rate-card">
+                        <div class="rate-info">
+                            <span class="rate-label" id="dartLatestEquityLabel">최신 분기 자본총계</span>
+                            <span class="rate-value" id="dartLatestEquity">--</span>
+                        </div>
+                    </div>
+                    <div class="rate-card kr-rate">
+                        <div class="rate-flag">🇰🇷</div>
+                        <div class="rate-info">
+                            <span class="rate-label" id="dartLatestRateLabel">최신 분기 KR 10Y</span>
+                            <span class="rate-value" id="dartLatestRate">--</span>
+                        </div>
+                    </div>
+                    <div class="rate-card">
+                        <div class="rate-info">
+                            <span class="rate-label">전분기 대비 자본 증감</span>
+                            <span class="rate-value" id="dartEquityChange">--</span>
+                        </div>
+                    </div>
+                    <div class="rate-card">
+                        <div class="rate-info">
+                            <span class="rate-label">전분기 대비 금리 변화</span>
+                            <span class="rate-value" id="dartRateChange">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="charts-grid" style="grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+                    <!-- Left Chart: 자본 & 금리 추이 -->
+                    <div class="card">
+                        <h3 class="chart-title">자본총계 & 금리 추이</h3>
+                        <div class="chart-wrapper" style="height: 400px;">
+                            <canvas id="dartEquityRateChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Right Chart: 금리 변화에 따른 자본 민감도 추이 -->
+                    <div class="card">
+                        <h3 class="chart-title">금리 변화에 따른 자본 민감도 추이</h3>
+                        <div class="chart-wrapper" style="height: 400px;">
+                            <canvas id="dartDurationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <span>Data Sources: FRED, Bank of Korea ECOS, DART</span>
+            <span>|</span>
+            <span>Analysis: Groq Qwen3 32B</span>
+        </div>
+    </footer>
+
+    <!-- Chat Widget -->
+    <div class="chat-widget" id="chatWidget">
+        <!-- Chat Toggle Button -->
+        <button class="chat-toggle" id="chatToggle" title="AI 채팅">
+            <svg class="chat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <svg class="close-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+
+        <!-- Chat Window -->
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+                <div class="chat-header-info">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 16v-4"></path>
+                        <path d="M12 8h.01"></path>
+                    </svg>
+                    <span>AI Assistant</span>
+                </div>
+                <span class="chat-badge">Gemini</span>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-message bot">
+                    <div class="message-content">
+                        안녕하세요! 금리 및 채권 시장에 대해 궁금한 점을 물어보세요.
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <input type="text" class="chat-input" id="chatInput" placeholder="메시지를 입력하세요..." maxlength="500">
+                <button class="chat-send" id="chatSend" title="전송">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/charts.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/dart.js"></script>
+</body>
+</html>

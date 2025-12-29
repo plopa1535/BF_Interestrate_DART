@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" width="120" height="140">
+  <!-- Main body (bird/leaf shape) -->
+  <path d="M60 35
+           Q95 35 95 65
+           Q95 95 60 95
+           Q25 95 25 65
+           Q25 35 60 35
+           M60 95
+           Q70 95 75 85
+           Q85 70 100 75
+           Q110 78 108 68
+           Q105 55 90 55
+           Q75 55 70 70
+           Q65 80 60 85"
+        fill="#4CAF50" stroke="none"/>
+
+  <!-- Eye (white circle) -->
+  <circle cx="45" cy="60" r="10" fill="white"/>
+
+  <!-- Stem/trunk -->
+  <path d="M60 95 L60 130 Q60 135 55 135 L65 135 Q60 135 60 130"
+        fill="#4CAF50" stroke="none"/>
+  <rect x="55" y="95" width="10" height="40" fill="#4CAF50"/>
+
+  <!-- Root/base -->
+  <ellipse cx="60" cy="135" rx="15" ry="5" fill="#4CAF50"/>
+</svg>
