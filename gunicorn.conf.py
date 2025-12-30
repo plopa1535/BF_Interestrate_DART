@@ -9,8 +9,8 @@ import multiprocessing
 bind = os.getenv('GUNICORN_BIND', '0.0.0.0:5000')
 backlog = 2048
 
-# Worker Processes (limited for Render free plan 512MB)
-workers = int(os.getenv('GUNICORN_WORKERS', 2))
+# Worker Processes (Render Starter plan 2GB)
+workers = int(os.getenv('GUNICORN_WORKERS', 4))
 worker_class = 'sync'
 worker_connections = 1000
 max_requests = 1000
