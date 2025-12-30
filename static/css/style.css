@@ -549,8 +549,8 @@ body {
 
 .forecast-source {
     font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--gray-700);
+    font-weight: 400;
+    color: var(--gray-600);
 }
 
 .forecast-updated {
