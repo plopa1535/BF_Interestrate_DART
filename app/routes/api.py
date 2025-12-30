@@ -35,12 +35,6 @@ def create_response(status: str, data=None, error: str = None):
     return response
 
 
-@api_bp.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint for Render."""
-    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
-
-
 @api_bp.route('/rates', methods=['GET'])
 def get_rates():
     """
