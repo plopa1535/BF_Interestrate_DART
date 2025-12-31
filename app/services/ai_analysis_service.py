@@ -201,7 +201,7 @@ class AIAnalysisService:
             return "최신 뉴스 없음"
 
         news_texts = []
-        for i, item in enumerate(news_list[:5], 1):  # Max 5 news items
+        for i, item in enumerate(news_list[:10], 1):  # Max 10 news items
             title = item.get('title', '')
             source = item.get('source', '')
             if title:

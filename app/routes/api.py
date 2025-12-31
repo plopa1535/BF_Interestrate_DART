@@ -145,8 +145,8 @@ def get_analysis():
         current_spread = combined_data.iloc[-1]["spread"]
 
         # Get news data for analysis
-        us_news = news_service.get_us_rate_news(limit=5)
-        kr_news = news_service.get_kr_rate_news(limit=5)
+        us_news = []
+        kr_news = news_service.get_kr_rate_news(limit=10)
 
         # Generate analysis with news context
         analysis_text = ai_service.generate_rate_analysis(
