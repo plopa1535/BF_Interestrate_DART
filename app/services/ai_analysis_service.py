@@ -29,7 +29,7 @@ class AIAnalysisService:
     _cache = TTLCache(maxsize=10, ttl=21600)
 
     # Analysis prompt template
-    ANALYSIS_PROMPT = """당신은 채권 시장 전문 애널리스트입니다. 아래의 미국과 한국 10년물 국고채 금리 데이터와 최신 뉴스를 종합하여 시장 동향을 분석해 주세요.
+    ANALYSIS_PROMPT = """당신은 채권 시장 전문 애널리스트입니다. 아래의 미국과 한국 10년물 국고채 금리 데이터와 한국 최신 뉴스를 종합하여 시장 동향을 분석해 주세요.
 
 ## 금리 데이터
 ### 미국 10년물 국고채 금리 (최근 30일)
@@ -41,17 +41,13 @@ class AIAnalysisService:
 ### 현재 스프레드 (한국 - 미국)
 {spread}bp
 
-## 최신 뉴스
-### 미국 금리 관련 뉴스
-{us_news}
-
-### 한국 금리 관련 뉴스
+## 한국 금리 관련 최신 뉴스
 {kr_news}
 
 ## 요구사항
 - 정확히 3문장으로 요약하세요.
 - 첫 번째 문장: 최근 금리 추세 및 주요 변동 요인을 분석하세요.
-- 두 번째 문장: 뉴스에서 언급된 주요 이슈(연준/한은 정책, 경제 지표 등)를 반영하세요.
+- 두 번째 문장: 한국 뉴스에서 언급된 주요 이슈(한은 정책, 경제 지표, 시장 동향 등)를 반영하세요.
 - 세 번째 문장: 향후 단기 전망 또는 투자자가 주의해야 할 포인트를 제시하세요.
 - 전문적이면서도 간결한 애널리스트 톤으로 작성하세요.
 - 구체적인 수치를 포함하세요.
@@ -105,8 +101,7 @@ class AIAnalysisService:
             us_summary = self._format_rate_data(us_rates, "us_rate")
             kr_summary = self._format_rate_data(kr_rates, "kr_rate")
 
-            # Format news data
-            us_news_summary = self._format_news_data(us_news)
+            # Format news data (Korean news only)
             kr_news_summary = self._format_news_data(kr_news)
 
             # Build prompt
@@ -114,7 +109,6 @@ class AIAnalysisService:
                 us_data=us_summary,
                 kr_data=kr_summary,
                 spread=f"{spread:.1f}",
-                us_news=us_news_summary,
                 kr_news=kr_news_summary
             )
 
@@ -216,17 +210,14 @@ class AIAnalysisService:
         return "\n".join(news_texts) if news_texts else "최신 뉴스 없음"
 
     def _get_cache_key(self, us_rates: pd.DataFrame, kr_rates: pd.DataFrame, us_news: list = None, kr_news: list = None) -> str:
-        """Generate cache key based on latest data and news."""
+        """Generate cache key based on latest data and Korean news."""
         us_latest = us_rates.iloc[-1]["date"].strftime("%Y%m%d") if not us_rates.empty else "none"
         kr_latest = kr_rates.iloc[-1]["date"].strftime("%Y%m%d") if not kr_rates.empty else "none"
 
-        # Include latest news timestamp in cache key
+        # Include latest Korean news timestamp in cache key
         news_key = "nonews"
-        if us_news and len(us_news) > 0:
-            latest_news_time = us_news[0].get('published_at', '')[:13]  # YYYY-MM-DDTHH
-            news_key = latest_news_time.replace('-', '').replace('T', '').replace(':', '')
-        elif kr_news and len(kr_news) > 0:
-            latest_news_time = kr_news[0].get('published_at', '')[:13]
+        if kr_news and len(kr_news) > 0:
+            latest_news_time = kr_news[0].get('published_at', '')[:13]  # YYYY-MM-DDTHH
             news_key = latest_news_time.replace('-', '').replace('T', '').replace(':', '')
 
         return f"analysis_{us_latest}_{kr_latest}_{news_key}"
