@@ -204,8 +204,12 @@ class AIAnalysisService:
         for i, item in enumerate(news_list[:10], 1):  # Max 10 news items
             title = item.get('title', '')
             source = item.get('source', '')
+            snippet = item.get('snippet', '')
             if title:
-                news_texts.append(f"{i}. [{source}] {title}")
+                if snippet:
+                    news_texts.append(f"{i}. [{source}] {title}\n   → {snippet}")
+                else:
+                    news_texts.append(f"{i}. [{source}] {title}")
 
         return "\n".join(news_texts) if news_texts else "최신 뉴스 없음"
 
