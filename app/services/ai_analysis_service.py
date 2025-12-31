@@ -91,7 +91,7 @@ class AIAnalysisService:
             Analysis text (3 sentences)
         """
         # Check cache first
-        cache_key = self._get_cache_key(us_rates, kr_rates)
+        cache_key = self._get_cache_key(us_rates, kr_rates, us_news, kr_news)
         if cache_key in self._cache:
             logger.info("Returning cached analysis")
             return self._cache[cache_key]
@@ -215,11 +215,21 @@ class AIAnalysisService:
 
         return "\n".join(news_texts) if news_texts else "최신 뉴스 없음"
 
-    def _get_cache_key(self, us_rates: pd.DataFrame, kr_rates: pd.DataFrame) -> str:
-        """Generate cache key based on latest data."""
+    def _get_cache_key(self, us_rates: pd.DataFrame, kr_rates: pd.DataFrame, us_news: list = None, kr_news: list = None) -> str:
+        """Generate cache key based on latest data and news."""
         us_latest = us_rates.iloc[-1]["date"].strftime("%Y%m%d") if not us_rates.empty else "none"
         kr_latest = kr_rates.iloc[-1]["date"].strftime("%Y%m%d") if not kr_rates.empty else "none"
-        return f"analysis_{us_latest}_{kr_latest}"
+
+        # Include latest news timestamp in cache key
+        news_key = "nonews"
+        if us_news and len(us_news) > 0:
+            latest_news_time = us_news[0].get('published_at', '')[:13]  # YYYY-MM-DDTHH
+            news_key = latest_news_time.replace('-', '').replace('T', '').replace(':', '')
+        elif kr_news and len(kr_news) > 0:
+            latest_news_time = kr_news[0].get('published_at', '')[:13]
+            news_key = latest_news_time.replace('-', '').replace('T', '').replace(':', '')
+
+        return f"analysis_{us_latest}_{kr_latest}_{news_key}"
 
     def _get_default_analysis(
         self,
