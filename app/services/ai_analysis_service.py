@@ -29,10 +29,7 @@ class AIAnalysisService:
     _cache = TTLCache(maxsize=10, ttl=21600)
 
     # Analysis prompt template
-    ANALYSIS_PROMPT = """당신은 채권 시장 전문 애널리스트입니다. 아래의 미국 연준 기준금리 결정, 미국과 한국 10년물 국고채 금리 데이터, 한국 최신 뉴스를 종합하여 시장 동향을 분석해 주세요.
-
-## 미국 연준(Fed) 기준금리 현황
-{fed_rate_info}
+    ANALYSIS_PROMPT = """당신은 채권 시장 전문 애널리스트입니다. 아래의 미국과 한국 10년물 국고채 금리 데이터와 한국 최신 뉴스를 종합하여 시장 동향을 분석해 주세요.
 
 ## 금리 데이터
 ### 미국 10년물 국고채 금리 (최근 30일)
@@ -49,7 +46,7 @@ class AIAnalysisService:
 
 ## 요구사항
 - 정확히 3문장으로 요약하세요.
-- 첫 번째 문장: 연준의 최근 기준금리 결정(인상/인하/동결)을 먼저 언급하고, 이에 따른 금리 추세를 분석하세요.
+- 첫 번째 문장: 미국과 한국 금리 추세를 분석하세요.
 - 두 번째 문장: 한국 뉴스에서 언급된 주요 이슈(한은 정책, 경제 지표, 시장 동향 등)를 반영하세요.
 - 세 번째 문장: 향후 단기 전망 또는 투자자가 주의해야 할 포인트를 제시하세요.
 - 전문적이면서도 간결한 애널리스트 톤으로 작성하세요.
@@ -74,8 +71,7 @@ class AIAnalysisService:
         kr_rates: pd.DataFrame,
         spread: float,
         us_news: list = None,
-        kr_news: list = None,
-        fed_rate_info: dict = None
+        kr_news: list = None
     ) -> str:
         """
         Generate AI analysis of interest rate trends with news context.
@@ -86,13 +82,12 @@ class AIAnalysisService:
             spread: Current spread in basis points
             us_news: List of US news items
             kr_news: List of Korean news items
-            fed_rate_info: Dictionary with Fed Funds rate change info
 
         Returns:
             Analysis text (3 sentences)
         """
         # Check cache first
-        cache_key = self._get_cache_key(us_rates, kr_rates, us_news, kr_news, fed_rate_info)
+        cache_key = self._get_cache_key(us_rates, kr_rates, us_news, kr_news)
         if cache_key in self._cache:
             logger.info("Returning cached analysis")
             return self._cache[cache_key]
@@ -109,12 +104,8 @@ class AIAnalysisService:
             # Format news data (Korean news only)
             kr_news_summary = self._format_news_data(kr_news)
 
-            # Format Fed rate info
-            fed_rate_summary = self._format_fed_rate_info(fed_rate_info)
-
             # Build prompt
             prompt = self.ANALYSIS_PROMPT.format(
-                fed_rate_info=fed_rate_summary,
                 us_data=us_summary,
                 kr_data=kr_summary,
                 spread=f"{spread:.1f}",
@@ -222,30 +213,8 @@ class AIAnalysisService:
 
         return "\n".join(news_texts) if news_texts else "최신 뉴스 없음"
 
-    def _format_fed_rate_info(self, fed_rate_info: dict) -> str:
-        """Format Fed Funds rate info for the prompt."""
-        if not fed_rate_info or fed_rate_info.get('current_rate') is None:
-            return "Fed 기준금리 데이터 없음"
-
-        current_rate = fed_rate_info.get('current_rate')
-        change_direction = fed_rate_info.get('change_direction')
-        change = fed_rate_info.get('change')
-        change_date = fed_rate_info.get('change_date')
-
-        if change_direction and change and change_date:
-            return (
-                f"현재 기준금리: {current_rate}%\n"
-                f"최근 결정: {change_date}에 {abs(change):.0f}bp {change_direction}\n"
-                f"(참고: 이 데이터는 FRED Fed Funds Effective Rate 기준)"
-            )
-        else:
-            return (
-                f"현재 기준금리: {current_rate}%\n"
-                f"최근 90일간 금리 변동 없음 (동결)"
-            )
-
-    def _get_cache_key(self, us_rates: pd.DataFrame, kr_rates: pd.DataFrame, us_news: list = None, kr_news: list = None, fed_rate_info: dict = None) -> str:
-        """Generate cache key based on latest data, Korean news, and Fed rate."""
+    def _get_cache_key(self, us_rates: pd.DataFrame, kr_rates: pd.DataFrame, us_news: list = None, kr_news: list = None) -> str:
+        """Generate cache key based on latest data and Korean news."""
         us_latest = us_rates.iloc[-1]["date"].strftime("%Y%m%d") if not us_rates.empty else "none"
         kr_latest = kr_rates.iloc[-1]["date"].strftime("%Y%m%d") if not kr_rates.empty else "none"
 
@@ -255,12 +224,7 @@ class AIAnalysisService:
             latest_news_time = kr_news[0].get('published_at', '')[:13]  # YYYY-MM-DDTHH
             news_key = latest_news_time.replace('-', '').replace('T', '').replace(':', '')
 
-        # Include Fed rate info in cache key
-        fed_key = "nofed"
-        if fed_rate_info:
-            fed_key = f"{fed_rate_info.get('current_rate', 0)}_{fed_rate_info.get('change_date', 'none')}"
-
-        return f"analysis_{us_latest}_{kr_latest}_{news_key}_{fed_key}"
+        return f"analysis_{us_latest}_{kr_latest}_{news_key}"
 
     def _get_default_analysis(
         self,

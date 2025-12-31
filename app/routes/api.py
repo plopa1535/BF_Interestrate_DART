@@ -144,21 +144,17 @@ def get_analysis():
         kr_rates = combined_data[["date", "kr_rate"]].copy()
         current_spread = combined_data.iloc[-1]["spread"]
 
-        # Get Fed Funds rate changes
-        fed_rate_info = rate_service.get_fed_rate_changes(days=90)
-
         # Get news data for analysis
         us_news = []
         kr_news = news_service.get_kr_rate_news(limit=10)
 
-        # Generate analysis with news context and Fed rate info
+        # Generate analysis with news context
         analysis_text = ai_service.generate_rate_analysis(
             us_rates=us_rates,
             kr_rates=kr_rates,
             spread=current_spread,
             us_news=us_news,
-            kr_news=kr_news,
-            fed_rate_info=fed_rate_info
+            kr_news=kr_news
         )
 
         return jsonify(create_response(
@@ -166,8 +162,7 @@ def get_analysis():
             data={
                 "analysis": analysis_text,
                 "generated_at": datetime.now().isoformat(),
-                "data_date": combined_data.iloc[-1]["date"].strftime("%Y-%m-%d"),
-                "fed_rate": fed_rate_info
+                "data_date": combined_data.iloc[-1]["date"].strftime("%Y-%m-%d")
             }
         ))
 
