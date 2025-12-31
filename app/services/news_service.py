@@ -33,7 +33,8 @@ class NewsService:
         "한국 국고채 금리",
         "한국은행 기준금리",
         "채권시장 금리",
-        "미국 금리"
+        "미국 금리 인하",
+        "연준 금리"
     ]
     
     # Cache for news (TTL: 30 minutes)
