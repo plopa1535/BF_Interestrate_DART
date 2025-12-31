@@ -23,6 +23,7 @@ class RateDataService:
     # FRED API Configuration
     FRED_BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
     FRED_SERIES_ID = "DGS10"  # 10-Year Treasury Constant Maturity Rate
+    FRED_FED_FUNDS_ID = "DFF"  # Daily Federal Funds Effective Rate (기준금리)
     
     # ECOS API Configuration
     ECOS_BASE_URL = "https://ecos.bok.or.kr/api/StatisticSearch"
@@ -97,6 +98,129 @@ class RateDataService:
             logger.error(f"Error fetching US rate data: {e}")
             return self._get_mock_us_data(start_date, end_date)
     
+    def get_fed_funds_rate(self, start_date: str, end_date: str) -> pd.DataFrame:
+        """
+        Fetch Fed Funds Effective Rate from FRED API.
+
+        Args:
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
+
+        Returns:
+            DataFrame with columns: date, fed_rate
+        """
+        cache_key = f"fed_{start_date}_{end_date}"
+        if cache_key in self._cache:
+            logger.info("Returning cached Fed Funds rate data")
+            return self._cache[cache_key]
+
+        if not self.fred_api_key:
+            logger.error("FRED API key is required")
+            return pd.DataFrame(columns=["date", "fed_rate"])
+
+        try:
+            params = {
+                "series_id": self.FRED_FED_FUNDS_ID,
+                "api_key": self.fred_api_key,
+                "file_type": "json",
+                "observation_start": start_date,
+                "observation_end": end_date,
+                "sort_order": "asc"
+            }
+
+            response = self._make_request(self.FRED_BASE_URL, params)
+
+            if response and "observations" in response:
+                observations = response["observations"]
+                df = pd.DataFrame(observations)
+
+                # Clean and transform data
+                df = df[["date", "value"]].copy()
+                df["value"] = pd.to_numeric(df["value"], errors="coerce")
+                df = df.dropna(subset=["value"])
+                df.columns = ["date", "fed_rate"]
+                df["date"] = pd.to_datetime(df["date"])
+
+                # Cache the result
+                self._cache[cache_key] = df
+                logger.info(f"Fetched {len(df)} Fed Funds rate observations")
+                return df
+            else:
+                logger.warning("No observations found in FRED response for Fed Funds rate")
+                return pd.DataFrame(columns=["date", "fed_rate"])
+
+        except Exception as e:
+            logger.error(f"Error fetching Fed Funds rate data: {e}")
+            return pd.DataFrame(columns=["date", "fed_rate"])
+
+    def get_fed_rate_changes(self, days: int = 90) -> Dict[str, Any]:
+        """
+        Get Fed Funds rate with recent changes detection.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            Dictionary with current rate, previous rate, and change info
+        """
+        end_dt = datetime.now()
+        start_dt = end_dt - timedelta(days=days)
+        start_str = start_dt.strftime("%Y-%m-%d")
+        end_str = end_dt.strftime("%Y-%m-%d")
+
+        df = self.get_fed_funds_rate(start_str, end_str)
+
+        if df.empty:
+            return {
+                "current_rate": None,
+                "previous_rate": None,
+                "change": None,
+                "change_date": None,
+                "change_direction": None
+            }
+
+        # Find rate changes
+        df = df.sort_values("date").reset_index(drop=True)
+        df["rate_change"] = df["fed_rate"].diff()
+
+        # Get current rate
+        current_rate = df.iloc[-1]["fed_rate"]
+        current_date = df.iloc[-1]["date"]
+
+        # Find the most recent rate change (where rate_change != 0)
+        changes = df[df["rate_change"].abs() > 0.01]  # threshold for detecting change
+
+        if not changes.empty:
+            last_change = changes.iloc[-1]
+            change_amount = last_change["rate_change"]
+            change_date = last_change["date"]
+            previous_rate = current_rate - change_amount
+
+            if change_amount > 0:
+                direction = "인상"
+            elif change_amount < 0:
+                direction = "인하"
+            else:
+                direction = "동결"
+
+            return {
+                "current_rate": round(float(current_rate), 2),
+                "previous_rate": round(float(previous_rate), 2),
+                "change": round(float(change_amount * 100), 0),  # basis points
+                "change_date": change_date.strftime("%Y-%m-%d"),
+                "change_direction": direction,
+                "data_date": current_date.strftime("%Y-%m-%d")
+            }
+        else:
+            return {
+                "current_rate": round(float(current_rate), 2),
+                "previous_rate": None,
+                "change": 0,
+                "change_date": None,
+                "change_direction": "동결",
+                "data_date": current_date.strftime("%Y-%m-%d")
+            }
+
     def get_kr_treasury_10y(self, start_date: str, end_date: str) -> pd.DataFrame:
         """
         Fetch Korean 10-Year Treasury yield from ECOS API.
