@@ -589,28 +589,34 @@ def analyze_dart():
 @api_bp.route('/rates/coupling', methods=['GET'])
 def get_rate_coupling():
     """
-    Calculate daily coupling/decoupling strength between US and Korean rates.
+    Calculate daily coupling/decoupling strength between US and Korean rates
+    using Rolling Beta regression method.
 
-    Measures synchronization of rate movements using rolling window.
-    Coupling strength = ratio of days when both rates move in same direction.
+    Rolling Beta measures how much Korean rates respond to US rate changes.
+    Beta = Cov(ΔKR, ΔUS) / Var(ΔUS)
+
+    - Beta ≈ 1.0: 1:1 coupling (US 1bp → KR 1bp)
+    - Beta > 1.0: KR is more sensitive than US
+    - Beta < 1.0: KR is less sensitive than US (partial decoupling)
+    - Beta ≈ 0: Complete decoupling
 
     Query Parameters:
         days (int): Total period in days (default: 180)
-        window (int): Rolling window size in days (default: 7)
+        window (int): Rolling window size in days (default: 14)
 
     Returns:
-        JSON with daily coupling strength data
+        JSON with daily rolling beta data
     """
     try:
         days = request.args.get('days', 180, type=int)
-        window = request.args.get('window', 7, type=int)
+        window = request.args.get('window', 14, type=int)
 
         days = min(max(days, 30), 365)
-        window = min(max(window, 3), 14)
+        window = min(max(window, 7), 30)
 
         rate_service = get_rate_service()
         # Get extra days for window calculation
-        combined_data = rate_service.get_combined_rates(days=days + window + 5)
+        combined_data = rate_service.get_combined_rates(days=days + window + 10)
 
         if combined_data.empty or len(combined_data) < window + 2:
             return jsonify(create_response(
@@ -621,51 +627,79 @@ def get_rate_coupling():
         # Sort by date
         df = combined_data.sort_values('date').reset_index(drop=True)
 
-        # Calculate daily rate changes
-        df['us_change'] = df['us_rate'].diff()
-        df['kr_change'] = df['kr_rate'].diff()
+        # Calculate daily rate changes (in basis points for clarity)
+        df['us_change'] = df['us_rate'].diff() * 100  # Convert to bp
+        df['kr_change'] = df['kr_rate'].diff() * 100  # Convert to bp
 
-        # Determine if both rates move in same direction
-        # Same direction: both positive or both negative
-        df['same_direction'] = (
-            ((df['us_change'] > 0) & (df['kr_change'] > 0)) |
-            ((df['us_change'] < 0) & (df['kr_change'] < 0))
-        ).astype(int)
+        # Calculate rolling beta using OLS regression
+        # Beta = Cov(Y, X) / Var(X) where Y = KR change, X = US change
+        betas = []
+        for i in range(len(df)):
+            if i < window:
+                betas.append(np.nan)
+                continue
 
-        # Calculate rolling coupling strength
-        df['coupling_strength'] = df['same_direction'].rolling(window=window, min_periods=window).mean()
+            window_data = df.iloc[i - window + 1:i + 1]
+            us_changes = window_data['us_change'].dropna().values
+            kr_changes = window_data['kr_change'].dropna().values
+
+            # Need at least window/2 valid data points
+            if len(us_changes) < window // 2 or len(kr_changes) < window // 2:
+                betas.append(np.nan)
+                continue
+
+            # Calculate variance of US changes
+            us_var = np.var(us_changes, ddof=1)
+
+            # Avoid division by zero (when US rates don't move)
+            if us_var < 1e-10:
+                betas.append(np.nan)
+                continue
+
+            # Calculate covariance and beta
+            cov = np.cov(us_changes, kr_changes, ddof=1)[0, 1]
+            beta = cov / us_var
+
+            # Clamp extreme values for visualization
+            beta = max(min(beta, 3.0), -1.0)
+            betas.append(beta)
+
+        df['beta'] = betas
 
         # Drop NaN rows and limit to requested days
-        df = df.dropna(subset=['coupling_strength'])
+        df = df.dropna(subset=['beta'])
         df = df.tail(days)
 
         # Build response
         coupling_data = []
         for _, row in df.iterrows():
-            strength = row['coupling_strength']
-            if strength >= 0.7:
-                direction = "coupled"
-            elif strength >= 0.5:
-                direction = "neutral"
+            beta = row['beta']
+
+            # Classify coupling strength based on beta
+            if beta >= 0.8:
+                direction = "coupled"      # Strong coupling
+            elif beta >= 0.4:
+                direction = "neutral"      # Moderate coupling
             else:
-                direction = "decoupled"
+                direction = "decoupled"    # Weak/no coupling
 
             coupling_data.append({
                 "date": row['date'].strftime("%Y-%m-%d"),
-                "strength": round(float(strength), 3),
+                "beta": round(float(beta), 3),
                 "direction": direction
             })
 
-        # Calculate overall coupling strength
-        overall_strength = df['coupling_strength'].mean()
+        # Calculate overall beta
+        overall_beta = df['beta'].mean() if len(df) > 0 else 0
 
         return jsonify(create_response(
             status="success",
             data={
                 "coupling": coupling_data,
-                "overall_strength": round(float(overall_strength), 3),
+                "overall_beta": round(float(overall_beta), 3),
                 "period_days": len(coupling_data),
-                "window_days": window
+                "window_days": window,
+                "method": "rolling_beta"
             }
         ))
 

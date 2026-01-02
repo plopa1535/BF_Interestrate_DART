@@ -298,7 +298,8 @@ const RateCharts = (function() {
     }
 
     /**
-     * Initialize the coupling strength bar chart
+     * Initialize the coupling strength bar chart using Rolling Beta
+     * Beta measures how much KR rates respond to US rate changes
      */
     function initCouplingChart(data) {
         const ctx = document.getElementById('couplingChart');
@@ -310,12 +311,15 @@ const RateCharts = (function() {
         }
 
         const labels = data.map(d => d.date);
-        const strengths = data.map(d => d.strength);
+        const betas = data.map(d => d.beta);
 
-        // Create colors based on strength value
-        const backgroundColors = strengths.map(s => {
-            if (s >= 0.7) return COLORS.couplingHigh;
-            if (s >= 0.5) return COLORS.couplingMid;
+        // Create colors based on beta value
+        // Beta >= 0.8: Strong coupling (green)
+        // Beta 0.4-0.8: Moderate coupling (yellow)
+        // Beta < 0.4: Weak/decoupling (red)
+        const backgroundColors = betas.map(b => {
+            if (b >= 0.8) return COLORS.couplingHigh;
+            if (b >= 0.4) return COLORS.couplingMid;
             return COLORS.couplingLow;
         });
 
@@ -324,8 +328,8 @@ const RateCharts = (function() {
             data: {
                 labels: labels,
                 datasets: [{
-                    label: '동조성 강도',
-                    data: strengths,
+                    label: 'Rolling Beta',
+                    data: betas,
                     backgroundColor: backgroundColors,
                     borderColor: backgroundColors,
                     borderWidth: 0,
@@ -358,12 +362,39 @@ const RateCharts = (function() {
                                 });
                             },
                             label: function(context) {
-                                const value = context.parsed.y;
+                                const beta = context.parsed.y;
                                 let interpretation = '';
-                                if (value >= 0.7) interpretation = ' (강한 커플링)';
-                                else if (value >= 0.5) interpretation = ' (중립)';
+                                if (beta >= 0.8) interpretation = ' (강한 커플링)';
+                                else if (beta >= 0.4) interpretation = ' (부분 커플링)';
                                 else interpretation = ' (디커플링)';
-                                return ` 동조성: ${(value * 100).toFixed(0)}%${interpretation}`;
+                                return ` Beta: ${beta.toFixed(2)}${interpretation}`;
+                            },
+                            afterLabel: function(context) {
+                                const beta = context.parsed.y;
+                                if (beta >= 1.0) {
+                                    return `  → US 1bp 상승 시 KR ${beta.toFixed(1)}bp 상승`;
+                                } else if (beta > 0) {
+                                    return `  → US 1bp 상승 시 KR ${(beta).toFixed(1)}bp 상승`;
+                                } else {
+                                    return `  → US와 역방향 또는 무관`;
+                                }
+                            }
+                        }
+                    },
+                    annotation: {
+                        annotations: {
+                            line1: {
+                                type: 'line',
+                                yMin: 1,
+                                yMax: 1,
+                                borderColor: 'rgba(66, 133, 244, 0.5)',
+                                borderWidth: 1,
+                                borderDash: [5, 5],
+                                label: {
+                                    display: true,
+                                    content: '1:1 연동',
+                                    position: 'start'
+                                }
                             }
                         }
                     }
@@ -386,19 +417,19 @@ const RateCharts = (function() {
                         }
                     },
                     y: {
-                        min: 0,
-                        max: 1,
+                        min: -0.5,
+                        max: 2.0,
                         grid: {
                             color: COLORS.grid,
                             drawBorder: false
                         },
                         ticks: {
-                            stepSize: 0.25,
-                            callback: value => (value * 100).toFixed(0) + '%'
+                            stepSize: 0.5,
+                            callback: value => value.toFixed(1)
                         },
                         title: {
                             display: true,
-                            text: '동조성 강도',
+                            text: 'Rolling Beta (β)',
                             font: { weight: '500' }
                         }
                     }
@@ -411,27 +442,27 @@ const RateCharts = (function() {
     }
 
     /**
-     * Load coupling data and render chart
+     * Load coupling data (Rolling Beta) and render chart
      */
     async function loadCouplingChart() {
         showLoading('couplingChartLoading');
 
         try {
-            const response = await fetch('/api/v1/rates/coupling?days=180&window=7');
+            const response = await fetch('/api/v1/rates/coupling?days=180&window=14');
             const result = await response.json();
 
             if (result.status === 'success' && result.data && result.data.coupling) {
                 initCouplingChart(result.data.coupling);
 
-                // Update overall coupling value
+                // Update overall beta value
                 const overallEl = document.getElementById('overallCoupling');
-                if (overallEl && result.data.overall_strength !== undefined) {
-                    const strength = result.data.overall_strength;
-                    overallEl.textContent = (strength * 100).toFixed(0) + '%';
+                if (overallEl && result.data.overall_beta !== undefined) {
+                    const beta = result.data.overall_beta;
+                    overallEl.textContent = 'β = ' + beta.toFixed(2);
 
-                    // Color based on value
-                    if (strength >= 0.7) overallEl.style.color = COLORS.couplingHigh;
-                    else if (strength >= 0.5) overallEl.style.color = COLORS.couplingMid;
+                    // Color based on beta value
+                    if (beta >= 0.8) overallEl.style.color = COLORS.couplingHigh;
+                    else if (beta >= 0.4) overallEl.style.color = COLORS.couplingMid;
                     else overallEl.style.color = COLORS.couplingLow;
                 }
             } else {

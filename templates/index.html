@@ -65,11 +65,11 @@
                     </div>
                 </div>
 
-                <!-- Coupling Strength Chart -->
+                <!-- Rolling Beta Chart -->
                 <div class="chart-card chart-coupling-full">
                     <div class="chart-header">
-                        <span class="chart-label">한미 금리 동조성 (7일 롤링, 최근 6개월)</span>
-                        <span class="coupling-overall">전체 동조성: <strong id="overallCoupling">--</strong></span>
+                        <span class="chart-label">한미 금리 Rolling Beta (14일 윈도우, 최근 6개월)</span>
+                        <span class="coupling-overall">평균: <strong id="overallCoupling">--</strong></span>
                     </div>
                     <div class="chart-wrapper">
                         <canvas id="couplingChart"></canvas>
@@ -78,9 +78,10 @@
                         <div class="spinner"></div>
                     </div>
                     <div class="chart-legend-info" style="margin-top: 8px; font-size: 11px; color: #5F6368;">
-                        <span style="margin-right: 12px;"><span style="color: #34A853;">●</span> 70%+ (강한 커플링)</span>
-                        <span style="margin-right: 12px;"><span style="color: #FBBC04;">●</span> 50-70% (중립)</span>
-                        <span><span style="color: #EA4335;">●</span> 50% 미만 (디커플링)</span>
+                        <span style="margin-right: 12px;"><span style="color: #34A853;">●</span> β≥0.8 (강한 커플링)</span>
+                        <span style="margin-right: 12px;"><span style="color: #FBBC04;">●</span> β 0.4~0.8 (부분 커플링)</span>
+                        <span style="margin-right: 12px;"><span style="color: #EA4335;">●</span> β&lt;0.4 (디커플링)</span>
+                        <span style="color: #999;">| β=1: US 1bp → KR 1bp</span>
                     </div>
                 </div>
 
