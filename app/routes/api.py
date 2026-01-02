@@ -4,10 +4,11 @@ Provides RESTful endpoints for rate data, AI analysis, and news.
 """
 
 from flask import Blueprint, jsonify, request, current_app
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import json
 import os
+import numpy as np
 
 from app.services.rate_service import get_rate_service
 from app.services.ai_analysis_service import get_ai_service
@@ -577,4 +578,92 @@ def analyze_dart():
         return jsonify(create_response(
             status="error",
             error=f"Failed to perform DART analysis: {str(e)}"
+        )), 500
+
+
+# ============================================================================
+# Rate Correlation API - 한미 금리 상관관계 분석
+# ============================================================================
+
+@api_bp.route('/rates/correlation', methods=['GET'])
+def get_rate_correlation():
+    """
+    Calculate rolling correlation between US and Korean 10Y rates.
+
+    Query Parameters:
+        days (int): Total period in days (default: 180, max: 365)
+        window (int): Rolling window size in days (default: 30)
+
+    Returns:
+        JSON with rolling correlation data for bar chart
+    """
+    try:
+        days = request.args.get('days', 180, type=int)
+        window = request.args.get('window', 30, type=int)
+
+        days = min(max(days, 30), 365)
+        window = min(max(window, 7), 60)
+
+        rate_service = get_rate_service()
+        combined_data = rate_service.get_combined_rates(days=days)
+
+        if combined_data.empty or len(combined_data) < window:
+            return jsonify(create_response(
+                status="error",
+                error="Insufficient data for correlation calculation"
+            )), 404
+
+        # Sort by date
+        combined_data = combined_data.sort_values('date').reset_index(drop=True)
+
+        # Calculate rolling correlation
+        correlations = []
+
+        # Calculate monthly correlations (roughly every 30 days)
+        step = window  # Non-overlapping windows
+
+        for i in range(0, len(combined_data) - window + 1, step):
+            window_data = combined_data.iloc[i:i + window]
+
+            us_rates = window_data['us_rate'].values
+            kr_rates = window_data['kr_rate'].values
+
+            # Check for valid data
+            if len(us_rates) >= 2 and np.std(us_rates) > 0 and np.std(kr_rates) > 0:
+                corr = np.corrcoef(us_rates, kr_rates)[0, 1]
+
+                # Get the end date of this window
+                end_date = window_data.iloc[-1]['date']
+                start_date = window_data.iloc[0]['date']
+
+                correlations.append({
+                    "period_start": start_date.strftime("%Y-%m-%d"),
+                    "period_end": end_date.strftime("%Y-%m-%d"),
+                    "period_label": end_date.strftime("%m/%d"),
+                    "correlation": round(float(corr), 3),
+                    "data_points": len(window_data)
+                })
+
+        # Calculate overall correlation
+        overall_corr = np.corrcoef(
+            combined_data['us_rate'].values,
+            combined_data['kr_rate'].values
+        )[0, 1]
+
+        return jsonify(create_response(
+            status="success",
+            data={
+                "correlations": correlations,
+                "overall_correlation": round(float(overall_corr), 3),
+                "period_days": days,
+                "window_days": window,
+                "total_observations": len(combined_data)
+            }
+        ))
+
+    except Exception as e:
+        logger.error(f"Error calculating correlation: {e}")
+        return jsonify(create_response(
+            status="error",
+            error="Failed to calculate correlation"
         )), 500

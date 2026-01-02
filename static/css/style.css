@@ -216,6 +216,32 @@ body {
     height: 250px;
 }
 
+.chart-correlation-full {
+    margin-top: var(--spacing-lg);
+}
+
+.chart-correlation-full .chart-wrapper {
+    height: 250px;
+}
+
+.chart-correlation-full .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.correlation-overall {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+}
+
+.correlation-overall strong {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
 .chart-loading {
     position: absolute;
     top: 0;

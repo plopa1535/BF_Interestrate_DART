@@ -9,6 +9,7 @@ const RateCharts = (function() {
     // Chart instances
     let rateChart = null;
     let spreadChart = null;
+    let correlationChart = null;
 
     // Color palette
     const COLORS = {
@@ -24,6 +25,9 @@ const RateCharts = (function() {
         },
         spreadPositive: '#34A853',
         spreadNegative: '#EA4335',
+        correlationHigh: '#34A853',
+        correlationMid: '#FBBC04',
+        correlationLow: '#EA4335',
         grid: '#E8EAED',
         text: '#5F6368'
     };
@@ -286,6 +290,140 @@ const RateCharts = (function() {
     }
 
     /**
+     * Initialize the correlation bar chart
+     */
+    function initCorrelationChart(data) {
+        const ctx = document.getElementById('correlationChart');
+        if (!ctx) return;
+
+        // Destroy existing chart
+        if (correlationChart) {
+            correlationChart.destroy();
+        }
+
+        const labels = data.map(d => d.period_label);
+        const correlations = data.map(d => d.correlation);
+
+        // Color based on correlation value
+        const backgroundColors = correlations.map(c => {
+            if (c >= 0.7) return COLORS.correlationHigh;
+            if (c >= 0.3) return COLORS.correlationMid;
+            return COLORS.correlationLow;
+        });
+
+        correlationChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '상관계수',
+                    data: correlations,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors,
+                    borderWidth: 0,
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(32, 33, 36, 0.95)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        cornerRadius: 8,
+                        padding: 12,
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const idx = tooltipItems[0].dataIndex;
+                                const item = data[idx];
+                                return `${item.period_start} ~ ${item.period_end}`;
+                            },
+                            label: function(context) {
+                                const value = context.parsed.y.toFixed(3);
+                                let interpretation = '';
+                                if (value >= 0.7) interpretation = ' (강한 양의 상관)';
+                                else if (value >= 0.3) interpretation = ' (약한 양의 상관)';
+                                else if (value >= -0.3) interpretation = ' (상관관계 없음)';
+                                else if (value >= -0.7) interpretation = ' (약한 음의 상관)';
+                                else interpretation = ' (강한 음의 상관)';
+                                return ` 상관계수: ${value}${interpretation}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                size: 11
+                            }
+                        }
+                    },
+                    y: {
+                        min: -1,
+                        max: 1,
+                        grid: {
+                            color: COLORS.grid,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            stepSize: 0.5,
+                            callback: value => value.toFixed(1)
+                        }
+                    }
+                }
+            }
+        });
+
+        // Hide loading indicator
+        hideLoading('correlationChartLoading');
+    }
+
+    /**
+     * Load correlation data and render chart
+     */
+    async function loadCorrelationChart() {
+        showLoading('correlationChartLoading');
+
+        try {
+            const response = await fetch('/api/v1/rates/correlation?days=180&window=30');
+            const result = await response.json();
+
+            if (result.status === 'success' && result.data && result.data.correlations) {
+                initCorrelationChart(result.data.correlations);
+
+                // Update overall correlation value
+                const overallEl = document.getElementById('overallCorrelation');
+                if (overallEl && result.data.overall_correlation !== undefined) {
+                    const corr = result.data.overall_correlation;
+                    overallEl.textContent = corr.toFixed(3);
+
+                    // Color based on value
+                    if (corr >= 0.7) overallEl.style.color = COLORS.correlationHigh;
+                    else if (corr >= 0.3) overallEl.style.color = COLORS.correlationMid;
+                    else overallEl.style.color = COLORS.correlationLow;
+                }
+            } else {
+                console.error('Failed to load correlation data:', result.error);
+            }
+        } catch (error) {
+            console.error('Error fetching correlation data:', error);
+        }
+    }
+
+    /**
      * Hide loading indicator
      */
     function hideLoading(elementId) {
@@ -353,6 +491,9 @@ const RateCharts = (function() {
                 initSpreadChart(rates);
                 updateRateSummary(rates);
 
+                // Load correlation chart
+                loadCorrelationChart();
+
                 // Update last update time
                 const updateEl = document.getElementById('lastUpdate');
                 if (updateEl) {
@@ -400,6 +541,7 @@ const RateCharts = (function() {
     return {
         init: loadCharts,
         loadCharts: loadCharts,
+        loadCorrelationChart: loadCorrelationChart,
         refresh: loadCharts
     };
 })();
