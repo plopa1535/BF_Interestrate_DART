@@ -694,7 +694,7 @@ def get_rate_cointegration():
         window = request.args.get('window', 90, type=int)
 
         days = min(max(days, 90), 1095)  # Max 3 years
-        window = min(max(window, 60), 180)  # Min 60 days for reliable test
+        window = min(max(window, 30), 180)  # Min 30 days for reliable test
 
         rate_service = get_rate_service()
         combined_data = rate_service.get_combined_rates(days=days)
