@@ -298,7 +298,7 @@ const RateCharts = (function() {
     }
 
     /**
-     * Initialize the coupling strength line chart
+     * Initialize the coupling strength bar chart
      */
     function initCouplingChart(data) {
         const ctx = document.getElementById('couplingChart');
@@ -312,39 +312,31 @@ const RateCharts = (function() {
         const labels = data.map(d => d.date);
         const strengths = data.map(d => d.strength);
 
-        // Create gradient colors based on strength
-        const pointColors = strengths.map(s => {
+        // Create colors based on strength value
+        const backgroundColors = strengths.map(s => {
             if (s >= 0.7) return COLORS.couplingHigh;
             if (s >= 0.5) return COLORS.couplingMid;
             return COLORS.couplingLow;
         });
 
         couplingChart = new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: {
                 labels: labels,
                 datasets: [{
                     label: '동조성 강도',
                     data: strengths,
-                    borderColor: '#4285F4',
-                    backgroundColor: 'rgba(66, 133, 244, 0.1)',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.3,
-                    pointRadius: 0,
-                    pointHoverRadius: 6,
-                    pointBackgroundColor: pointColors,
-                    pointHoverBorderColor: '#fff',
-                    pointHoverBorderWidth: 2
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors,
+                    borderWidth: 0,
+                    borderRadius: 1,
+                    barPercentage: 1.0,
+                    categoryPercentage: 1.0
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: {
-                    mode: 'index',
-                    intersect: false
-                },
                 plugins: {
                     legend: {
                         display: false
@@ -372,23 +364,6 @@ const RateCharts = (function() {
                                 else if (value >= 0.5) interpretation = ' (중립)';
                                 else interpretation = ' (디커플링)';
                                 return ` 동조성: ${(value * 100).toFixed(0)}%${interpretation}`;
-                            }
-                        }
-                    },
-                    annotation: {
-                        annotations: {
-                            line1: {
-                                type: 'line',
-                                yMin: 0.5,
-                                yMax: 0.5,
-                                borderColor: 'rgba(128, 128, 128, 0.5)',
-                                borderWidth: 2,
-                                borderDash: [5, 5],
-                                label: {
-                                    display: true,
-                                    content: '커플링/디커플링 경계',
-                                    position: 'end'
-                                }
                             }
                         }
                     }
