@@ -11,6 +11,7 @@ const RateCharts = (function() {
     let spreadChart = null;
     let correlationChart = null;
     let cointegrationChart = null;
+    let couplingChart = null;
 
     // Color palette
     const COLORS = {
@@ -32,6 +33,9 @@ const RateCharts = (function() {
         cointegrationStrong: '#34A853',
         cointegrationWeak: '#FBBC04',
         cointegrationNone: '#EA4335',
+        couplingHigh: '#34A853',
+        couplingMid: '#FBBC04',
+        couplingLow: '#EA4335',
         grid: '#E8EAED',
         text: '#5F6368'
     };
@@ -291,6 +295,178 @@ const RateCharts = (function() {
 
         // Hide loading indicator
         hideLoading('spreadChartLoading');
+    }
+
+    /**
+     * Initialize the coupling strength line chart
+     */
+    function initCouplingChart(data) {
+        const ctx = document.getElementById('couplingChart');
+        if (!ctx) return;
+
+        // Destroy existing chart
+        if (couplingChart) {
+            couplingChart.destroy();
+        }
+
+        const labels = data.map(d => d.date);
+        const strengths = data.map(d => d.strength);
+
+        // Create gradient colors based on strength
+        const pointColors = strengths.map(s => {
+            if (s >= 0.7) return COLORS.couplingHigh;
+            if (s >= 0.5) return COLORS.couplingMid;
+            return COLORS.couplingLow;
+        });
+
+        couplingChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '동조성 강도',
+                    data: strengths,
+                    borderColor: '#4285F4',
+                    backgroundColor: 'rgba(66, 133, 244, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: pointColors,
+                    pointHoverBorderColor: '#fff',
+                    pointHoverBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(32, 33, 36, 0.95)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        cornerRadius: 8,
+                        padding: 12,
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const date = new Date(tooltipItems[0].label);
+                                return date.toLocaleDateString('ko-KR', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                });
+                            },
+                            label: function(context) {
+                                const value = context.parsed.y;
+                                let interpretation = '';
+                                if (value >= 0.7) interpretation = ' (강한 커플링)';
+                                else if (value >= 0.5) interpretation = ' (중립)';
+                                else interpretation = ' (디커플링)';
+                                return ` 동조성: ${(value * 100).toFixed(0)}%${interpretation}`;
+                            }
+                        }
+                    },
+                    annotation: {
+                        annotations: {
+                            line1: {
+                                type: 'line',
+                                yMin: 0.5,
+                                yMax: 0.5,
+                                borderColor: 'rgba(128, 128, 128, 0.5)',
+                                borderWidth: 2,
+                                borderDash: [5, 5],
+                                label: {
+                                    display: true,
+                                    content: '커플링/디커플링 경계',
+                                    position: 'end'
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'category',
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            maxTicksLimit: 10,
+                            callback: function(value) {
+                                const date = new Date(this.getLabelForValue(value));
+                                return date.toLocaleDateString('ko-KR', {
+                                    month: 'short',
+                                    day: 'numeric'
+                                });
+                            }
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 1,
+                        grid: {
+                            color: COLORS.grid,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            stepSize: 0.25,
+                            callback: value => (value * 100).toFixed(0) + '%'
+                        },
+                        title: {
+                            display: true,
+                            text: '동조성 강도',
+                            font: { weight: '500' }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Hide loading indicator
+        hideLoading('couplingChartLoading');
+    }
+
+    /**
+     * Load coupling data and render chart
+     */
+    async function loadCouplingChart() {
+        showLoading('couplingChartLoading');
+
+        try {
+            const response = await fetch('/api/v1/rates/coupling?days=180&window=7');
+            const result = await response.json();
+
+            if (result.status === 'success' && result.data && result.data.coupling) {
+                initCouplingChart(result.data.coupling);
+
+                // Update overall coupling value
+                const overallEl = document.getElementById('overallCoupling');
+                if (overallEl && result.data.overall_strength !== undefined) {
+                    const strength = result.data.overall_strength;
+                    overallEl.textContent = (strength * 100).toFixed(0) + '%';
+
+                    // Color based on value
+                    if (strength >= 0.7) overallEl.style.color = COLORS.couplingHigh;
+                    else if (strength >= 0.5) overallEl.style.color = COLORS.couplingMid;
+                    else overallEl.style.color = COLORS.couplingLow;
+                }
+            } else {
+                console.error('Failed to load coupling data:', result.error);
+                hideLoading('couplingChartLoading');
+            }
+        } catch (error) {
+            console.error('Error fetching coupling data:', error);
+            hideLoading('couplingChartLoading');
+        }
     }
 
     /**
@@ -656,6 +832,9 @@ const RateCharts = (function() {
                 initSpreadChart(rates);
                 updateRateSummary(rates);
 
+                // Load coupling chart
+                loadCouplingChart();
+
                 // Correlation and cointegration charts disabled temporarily
                 // loadCorrelationChart();
                 // loadCointegrationChart();
@@ -707,6 +886,7 @@ const RateCharts = (function() {
     return {
         init: loadCharts,
         loadCharts: loadCharts,
+        loadCouplingChart: loadCouplingChart,
         loadCorrelationChart: loadCorrelationChart,
         loadCointegrationChart: loadCointegrationChart,
         refresh: loadCharts

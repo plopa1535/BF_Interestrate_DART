@@ -583,6 +583,101 @@ def analyze_dart():
 
 
 # ============================================================================
+# Rate Coupling API - 한미 금리 동조성 분석
+# ============================================================================
+
+@api_bp.route('/rates/coupling', methods=['GET'])
+def get_rate_coupling():
+    """
+    Calculate daily coupling/decoupling strength between US and Korean rates.
+
+    Measures synchronization of rate movements using rolling window.
+    Coupling strength = ratio of days when both rates move in same direction.
+
+    Query Parameters:
+        days (int): Total period in days (default: 180)
+        window (int): Rolling window size in days (default: 7)
+
+    Returns:
+        JSON with daily coupling strength data
+    """
+    try:
+        days = request.args.get('days', 180, type=int)
+        window = request.args.get('window', 7, type=int)
+
+        days = min(max(days, 30), 365)
+        window = min(max(window, 3), 14)
+
+        rate_service = get_rate_service()
+        # Get extra days for window calculation
+        combined_data = rate_service.get_combined_rates(days=days + window + 5)
+
+        if combined_data.empty or len(combined_data) < window + 2:
+            return jsonify(create_response(
+                status="error",
+                error="Insufficient data for coupling calculation"
+            )), 404
+
+        # Sort by date
+        df = combined_data.sort_values('date').reset_index(drop=True)
+
+        # Calculate daily rate changes
+        df['us_change'] = df['us_rate'].diff()
+        df['kr_change'] = df['kr_rate'].diff()
+
+        # Determine if both rates move in same direction
+        # Same direction: both positive or both negative
+        df['same_direction'] = (
+            ((df['us_change'] > 0) & (df['kr_change'] > 0)) |
+            ((df['us_change'] < 0) & (df['kr_change'] < 0))
+        ).astype(int)
+
+        # Calculate rolling coupling strength
+        df['coupling_strength'] = df['same_direction'].rolling(window=window, min_periods=window).mean()
+
+        # Drop NaN rows and limit to requested days
+        df = df.dropna(subset=['coupling_strength'])
+        df = df.tail(days)
+
+        # Build response
+        coupling_data = []
+        for _, row in df.iterrows():
+            strength = row['coupling_strength']
+            if strength >= 0.7:
+                direction = "coupled"
+            elif strength >= 0.5:
+                direction = "neutral"
+            else:
+                direction = "decoupled"
+
+            coupling_data.append({
+                "date": row['date'].strftime("%Y-%m-%d"),
+                "strength": round(float(strength), 3),
+                "direction": direction
+            })
+
+        # Calculate overall coupling strength
+        overall_strength = df['coupling_strength'].mean()
+
+        return jsonify(create_response(
+            status="success",
+            data={
+                "coupling": coupling_data,
+                "overall_strength": round(float(overall_strength), 3),
+                "period_days": len(coupling_data),
+                "window_days": window
+            }
+        ))
+
+    except Exception as e:
+        logger.error(f"Error calculating coupling: {e}")
+        return jsonify(create_response(
+            status="error",
+            error="Failed to calculate coupling"
+        )), 500
+
+
+# ============================================================================
 # Rate Correlation API - 한미 금리 상관관계 분석
 # ============================================================================
 
