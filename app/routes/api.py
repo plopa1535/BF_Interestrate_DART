@@ -601,7 +601,7 @@ def get_rate_correlation():
         days = request.args.get('days', 180, type=int)
         window = request.args.get('window', 30, type=int)
 
-        days = min(max(days, 30), 365)
+        days = min(max(days, 30), 1095)  # Max 3 years
         window = min(max(window, 7), 60)
 
         rate_service = get_rate_service()

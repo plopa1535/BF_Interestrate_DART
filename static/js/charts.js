@@ -398,7 +398,7 @@ const RateCharts = (function() {
         showLoading('correlationChartLoading');
 
         try {
-            const response = await fetch('/api/v1/rates/correlation?days=180&window=30');
+            const response = await fetch('/api/v1/rates/correlation?days=1095&window=30');
             const result = await response.json();
 
             if (result.status === 'success' && result.data && result.data.correlations) {
