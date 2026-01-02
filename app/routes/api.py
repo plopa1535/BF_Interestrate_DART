@@ -9,6 +9,7 @@ import logging
 import json
 import os
 import numpy as np
+from statsmodels.tsa.stattools import coint
 
 from app.services.rate_service import get_rate_service
 from app.services.ai_analysis_service import get_ai_service
@@ -666,4 +667,111 @@ def get_rate_correlation():
         return jsonify(create_response(
             status="error",
             error="Failed to calculate correlation"
+        )), 500
+
+
+# ============================================================================
+# Rate Cointegration API - 한미 금리 공적분 검정
+# ============================================================================
+
+@api_bp.route('/rates/cointegration', methods=['GET'])
+def get_rate_cointegration():
+    """
+    Calculate rolling cointegration test between US and Korean 10Y rates.
+
+    Uses Engle-Granger cointegration test to measure the strength of
+    long-term equilibrium relationship over time.
+
+    Query Parameters:
+        days (int): Total period in days (default: 1095, max: 1095)
+        window (int): Rolling window size in days (default: 90)
+
+    Returns:
+        JSON with rolling cointegration p-values for visualization
+    """
+    try:
+        days = request.args.get('days', 1095, type=int)
+        window = request.args.get('window', 90, type=int)
+
+        days = min(max(days, 90), 1095)  # Max 3 years
+        window = min(max(window, 60), 180)  # Min 60 days for reliable test
+
+        rate_service = get_rate_service()
+        combined_data = rate_service.get_combined_rates(days=days)
+
+        if combined_data.empty or len(combined_data) < window:
+            return jsonify(create_response(
+                status="error",
+                error="Insufficient data for cointegration calculation"
+            )), 404
+
+        # Sort by date
+        combined_data = combined_data.sort_values('date').reset_index(drop=True)
+
+        # Calculate rolling cointegration
+        cointegrations = []
+        step = 30  # Calculate every 30 days for smoother chart
+
+        for i in range(0, len(combined_data) - window + 1, step):
+            window_data = combined_data.iloc[i:i + window]
+
+            us_rates = window_data['us_rate'].values
+            kr_rates = window_data['kr_rate'].values
+
+            try:
+                # Engle-Granger cointegration test
+                # Returns: test_statistic, p-value, critical_values
+                stat, pvalue, crit_values = coint(us_rates, kr_rates)
+
+                # Get the end date of this window
+                end_date = window_data.iloc[-1]['date']
+                start_date = window_data.iloc[0]['date']
+
+                # Cointegration strength (1 - pvalue): higher = stronger relationship
+                strength = 1 - pvalue
+
+                cointegrations.append({
+                    "period_start": start_date.strftime("%Y-%m-%d"),
+                    "period_end": end_date.strftime("%Y-%m-%d"),
+                    "period_label": end_date.strftime("%y/%m"),
+                    "pvalue": round(float(pvalue), 4),
+                    "strength": round(float(strength), 4),
+                    "test_statistic": round(float(stat), 3),
+                    "is_cointegrated": pvalue < 0.05,
+                    "data_points": len(window_data)
+                })
+            except Exception as e:
+                logger.warning(f"Cointegration calculation failed for window: {e}")
+                continue
+
+        # Calculate overall cointegration
+        try:
+            overall_stat, overall_pvalue, _ = coint(
+                combined_data['us_rate'].values,
+                combined_data['kr_rate'].values
+            )
+            overall_strength = 1 - overall_pvalue
+        except Exception:
+            overall_pvalue = 1.0
+            overall_strength = 0.0
+            overall_stat = 0.0
+
+        return jsonify(create_response(
+            status="success",
+            data={
+                "cointegrations": cointegrations,
+                "overall_pvalue": round(float(overall_pvalue), 4),
+                "overall_strength": round(float(overall_strength), 4),
+                "overall_cointegrated": overall_pvalue < 0.05,
+                "period_days": days,
+                "window_days": window,
+                "total_observations": len(combined_data)
+            }
+        ))
+
+    except Exception as e:
+        logger.error(f"Error calculating cointegration: {e}")
+        return jsonify(create_response(
+            status="error",
+            error="Failed to calculate cointegration"
         )), 500

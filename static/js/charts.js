@@ -10,6 +10,7 @@ const RateCharts = (function() {
     let rateChart = null;
     let spreadChart = null;
     let correlationChart = null;
+    let cointegrationChart = null;
 
     // Color palette
     const COLORS = {
@@ -28,6 +29,9 @@ const RateCharts = (function() {
         correlationHigh: '#34A853',
         correlationMid: '#FBBC04',
         correlationLow: '#EA4335',
+        cointegrationStrong: '#34A853',
+        cointegrationWeak: '#FBBC04',
+        cointegrationNone: '#EA4335',
         grid: '#E8EAED',
         text: '#5F6368'
     };
@@ -392,6 +396,167 @@ const RateCharts = (function() {
     }
 
     /**
+     * Initialize the cointegration strength chart
+     */
+    function initCointegrationChart(data) {
+        const ctx = document.getElementById('cointegrationChart');
+        if (!ctx) return;
+
+        // Destroy existing chart
+        if (cointegrationChart) {
+            cointegrationChart.destroy();
+        }
+
+        const labels = data.map(d => d.period_label);
+        const strengths = data.map(d => d.strength);
+        const pvalues = data.map(d => d.pvalue);
+
+        // Color based on p-value (lower = stronger cointegration)
+        const backgroundColors = pvalues.map(p => {
+            if (p < 0.05) return COLORS.cointegrationStrong;  // Significant
+            if (p < 0.10) return COLORS.cointegrationWeak;    // Marginally significant
+            return COLORS.cointegrationNone;                   // Not significant
+        });
+
+        cointegrationChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '공적분 강도',
+                    data: strengths,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors,
+                    borderWidth: 0,
+                    borderRadius: 4,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(32, 33, 36, 0.95)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        cornerRadius: 8,
+                        padding: 12,
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const idx = tooltipItems[0].dataIndex;
+                                const item = data[idx];
+                                return `${item.period_start} ~ ${item.period_end}`;
+                            },
+                            label: function(context) {
+                                const idx = context.dataIndex;
+                                const item = data[idx];
+                                const pval = item.pvalue;
+                                let interpretation = '';
+                                if (pval < 0.01) interpretation = ' (매우 강한 공적분)';
+                                else if (pval < 0.05) interpretation = ' (유의한 공적분)';
+                                else if (pval < 0.10) interpretation = ' (약한 공적분)';
+                                else interpretation = ' (공적분 없음)';
+                                return [
+                                    ` 공적분 강도: ${(item.strength * 100).toFixed(1)}%`,
+                                    ` p-value: ${pval.toFixed(4)}${interpretation}`
+                                ];
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        grid: {
+                            display: false
+                        },
+                        ticks: {
+                            font: {
+                                size: 11
+                            }
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 1,
+                        grid: {
+                            color: COLORS.grid,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            stepSize: 0.25,
+                            callback: value => (value * 100).toFixed(0) + '%'
+                        },
+                        title: {
+                            display: true,
+                            text: '공적분 강도 (1 - p-value)',
+                            font: { size: 11 }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Hide loading indicator
+        hideLoading('cointegrationChartLoading');
+    }
+
+    /**
+     * Load cointegration data and render chart
+     */
+    async function loadCointegrationChart() {
+        showLoading('cointegrationChartLoading');
+
+        try {
+            const response = await fetch('/api/v1/rates/cointegration?days=1095&window=90');
+            const result = await response.json();
+
+            if (result.status === 'success' && result.data && result.data.cointegrations) {
+                initCointegrationChart(result.data.cointegrations);
+
+                // Update overall cointegration value
+                const overallEl = document.getElementById('overallCointegration');
+                if (overallEl && result.data.overall_strength !== undefined) {
+                    const strength = result.data.overall_strength;
+                    const pvalue = result.data.overall_pvalue;
+                    overallEl.textContent = (strength * 100).toFixed(1) + '%';
+
+                    // Color based on p-value
+                    if (pvalue < 0.05) overallEl.style.color = COLORS.cointegrationStrong;
+                    else if (pvalue < 0.10) overallEl.style.color = COLORS.cointegrationWeak;
+                    else overallEl.style.color = COLORS.cointegrationNone;
+                }
+
+                // Update cointegration status
+                const statusEl = document.getElementById('cointegrationStatus');
+                if (statusEl && result.data.overall_pvalue !== undefined) {
+                    const pvalue = result.data.overall_pvalue;
+                    if (pvalue < 0.05) {
+                        statusEl.textContent = '장기 균형 관계 유지';
+                        statusEl.style.color = COLORS.cointegrationStrong;
+                    } else if (pvalue < 0.10) {
+                        statusEl.textContent = '균형 관계 약화 중';
+                        statusEl.style.color = COLORS.cointegrationWeak;
+                    } else {
+                        statusEl.textContent = '균형 관계 붕괴';
+                        statusEl.style.color = COLORS.cointegrationNone;
+                    }
+                }
+            } else {
+                console.error('Failed to load cointegration data:', result.error);
+            }
+        } catch (error) {
+            console.error('Error fetching cointegration data:', error);
+        }
+    }
+
+    /**
      * Load correlation data and render chart
      */
     async function loadCorrelationChart() {
@@ -491,8 +656,9 @@ const RateCharts = (function() {
                 initSpreadChart(rates);
                 updateRateSummary(rates);
 
-                // Load correlation chart
+                // Load correlation and cointegration charts
                 loadCorrelationChart();
+                loadCointegrationChart();
 
                 // Update last update time
                 const updateEl = document.getElementById('lastUpdate');
@@ -542,6 +708,7 @@ const RateCharts = (function() {
         init: loadCharts,
         loadCharts: loadCharts,
         loadCorrelationChart: loadCorrelationChart,
+        loadCointegrationChart: loadCointegrationChart,
         refresh: loadCharts
     };
 })();
