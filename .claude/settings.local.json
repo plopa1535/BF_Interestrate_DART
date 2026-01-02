@@ -11,7 +11,8 @@
       "Bash(curl:*)",
       "Bash(git pull:*)",
       "Bash(git stash:*)",
-      "Bash(git stash pop:*)"
+      "Bash(git stash pop:*)",
+      "Bash(python:*)"
     ]
   }
 }

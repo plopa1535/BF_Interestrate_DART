@@ -310,8 +310,17 @@ const RateCharts = (function() {
             couplingChart.destroy();
         }
 
-        const labels = data.map(d => d.date);
-        const betas = data.map(d => d.beta);
+        // Filter out invalid data and extract values
+        const validData = data.filter(d => d.beta !== null && d.beta !== undefined && !isNaN(d.beta));
+
+        if (validData.length === 0) {
+            console.error('No valid beta data available');
+            hideLoading('couplingChartLoading');
+            return;
+        }
+
+        const labels = validData.map(d => d.date);
+        const betas = validData.map(d => d.beta);
 
         // Create colors based on beta value
         // Beta >= 0.8: Strong coupling (green)
@@ -377,23 +386,6 @@ const RateCharts = (function() {
                                     return `  → US 1bp 상승 시 KR ${(beta).toFixed(1)}bp 상승`;
                                 } else {
                                     return `  → US와 역방향 또는 무관`;
-                                }
-                            }
-                        }
-                    },
-                    annotation: {
-                        annotations: {
-                            line1: {
-                                type: 'line',
-                                yMin: 1,
-                                yMax: 1,
-                                borderColor: 'rgba(66, 133, 244, 0.5)',
-                                borderWidth: 1,
-                                borderDash: [5, 5],
-                                label: {
-                                    display: true,
-                                    content: '1:1 연동',
-                                    position: 'start'
                                 }
                             }
                         }
