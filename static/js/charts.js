@@ -656,9 +656,9 @@ const RateCharts = (function() {
                 initSpreadChart(rates);
                 updateRateSummary(rates);
 
-                // Load correlation and cointegration charts
-                loadCorrelationChart();
-                loadCointegrationChart();
+                // Correlation and cointegration charts disabled temporarily
+                // loadCorrelationChart();
+                // loadCointegrationChart();
 
                 // Update last update time
                 const updateEl = document.getElementById('lastUpdate');
